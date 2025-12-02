@@ -50,7 +50,7 @@ public class UserDaoJDBCImpl implements UserDao {
 
     }
 
-    public void saveUser(String name, String lastName, byte age) {
+    public void saveUser(String name, String lastName, byte age) throws SQLException {
         String SQL_SAVE_USER = """
                 INSERT INTO users(name, last_name, age)
                 VALUES (?, ?, ?)
@@ -58,14 +58,27 @@ public class UserDaoJDBCImpl implements UserDao {
 
         System.out.println(SQL_SAVE_USER);
 
-        try(PreparedStatement preparedStatement = connection.prepareStatement(SQL_SAVE_USER)) {
+        PreparedStatement preparedStatement = null;
+        try {
+            connection.setAutoCommit(false); // начало транзакции
+
+            connection.prepareStatement(SQL_SAVE_USER);
+            preparedStatement.setQueryTimeout(7);
+
             preparedStatement.setString(1, name);
             preparedStatement.setString(2, lastName);
             preparedStatement.setByte(3, age);
 
             preparedStatement.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+
+            connection.commit();  // конец транзакции
+
+        } catch (Exception e) {
+            connection.rollback();
+        } finally {
+            if (preparedStatement != null) {
+                preparedStatement.close();
+            }
         }
     }
 
@@ -95,6 +108,11 @@ public class UserDaoJDBCImpl implements UserDao {
         List<User> users = new ArrayList<>();
 
         try(PreparedStatement preparedStatement = connection.prepareStatement(SQL_GET_ALL_USERS)) {
+
+            preparedStatement.setFetchSize(64);  // кол-во строк доставаемых с БД за итерацию в приложение
+            preparedStatement.setQueryTimeout(10);  // ограничение по времени затраченное на запрос(секунды)
+            preparedStatement.setMaxFieldSize(124);  // ограничение, лимит для запросов(чтобы не упало приложение)
+
             ResultSet resultSet = preparedStatement.executeQuery();
             while (resultSet.next()) {
                 User user = new User(
