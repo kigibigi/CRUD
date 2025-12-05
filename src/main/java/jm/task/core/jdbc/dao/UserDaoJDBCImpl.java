@@ -9,7 +9,17 @@ import java.util.List;
 
 public class UserDaoJDBCImpl implements UserDao {
 
-    public UserDaoJDBCImpl() {
+    // делаю фабричный метод, т.е. объект можно получить только один(синглтон)
+    // даже если его будут использовать одновременно разные сревисы, таблица одна и отображение одно
+    // у него не будет никакого состояния
+
+    private static final UserDaoJDBCImpl INSTANCE = new UserDaoJDBCImpl();
+
+    private UserDaoJDBCImpl() {
+    }
+
+    public static UserDaoJDBCImpl getInstance() {
+        return INSTANCE;
     }
 
     Connection connection =  ConnectionUtil.getConnection();
@@ -22,7 +32,7 @@ public class UserDaoJDBCImpl implements UserDao {
                     id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
                     name VARCHAR(30) NOT NULL,
                     last_name VARCHAR(30) NOT NULL,
-                    age INT NOT NULL 
+                    age INT NOT NULL
                 )
                 """;
 
@@ -31,7 +41,11 @@ public class UserDaoJDBCImpl implements UserDao {
         try(PreparedStatement preparedStatement = connection.prepareStatement(SQL_CREATE_TABLE)) {
             preparedStatement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            if(e.getMessage().contains("Table 'users' already exists")) {
+                System.out.println("Table 'users' has been created!");
+            } else  {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -45,12 +59,16 @@ public class UserDaoJDBCImpl implements UserDao {
         try(PreparedStatement preparedStatement = connection.prepareStatement(SQL_DROP_TABLE)) {
             preparedStatement.execute();
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            if(e.getMessage().contains("Unknown table 'persons.users'")) {
+                System.out.println("Table 'users' has been deleted!");
+            } else  {
+                throw new RuntimeException(e);
+            }
         }
 
     }
 
-    public void saveUser(String name, String lastName, byte age) throws SQLException {
+    public void saveUser(String name, String lastName, byte age) {
         String SQL_SAVE_USER = """
                 INSERT INTO users(name, last_name, age)
                 VALUES (?, ?, ?)
@@ -58,27 +76,16 @@ public class UserDaoJDBCImpl implements UserDao {
 
         System.out.println(SQL_SAVE_USER);
 
-        PreparedStatement preparedStatement = null;
-        try {
-            connection.setAutoCommit(false); // начало транзакции
-
-            connection.prepareStatement(SQL_SAVE_USER);
-            preparedStatement.setQueryTimeout(7);
+        try (PreparedStatement preparedStatement = connection.prepareStatement(SQL_SAVE_USER)){
 
             preparedStatement.setString(1, name);
             preparedStatement.setString(2, lastName);
             preparedStatement.setByte(3, age);
 
             preparedStatement.executeUpdate();
-
-            connection.commit();  // конец транзакции
-
-        } catch (Exception e) {
-            connection.rollback();
-        } finally {
-            if (preparedStatement != null) {
-                preparedStatement.close();
-            }
+            System.out.println("User " + name + " successfully saved!");
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
