@@ -32,5 +32,7 @@ public class Main {
 
         userDao.cleanUsersTable();
         userDao.dropUsersTable();
+
+        //12345
     }
 }
